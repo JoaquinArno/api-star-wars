@@ -25,22 +25,22 @@
 ### Steps
 
 1. **Clone the repository**:
-   
+
    ```bash
    git clone https://github.com/JoaquinArno/conexa-challenge.git
    cd conexa-challenge
    ```
 
 2. **Install dependencies**:
-   
+
    ```bash
    npm install
    ```
 
 3. **Set up your `.env` file**:
-   
+
    Create a `.env` file in the root directory with the following variables:
-   
+
    ```env
    ENVIRONMENT=development
    PORT=3000
@@ -55,27 +55,27 @@
    ```
 
 4. **Start the application**:
-   
+
    - Development mode:
-     
+
      ```bash
      npm run start:dev
      ```
-   
+
    - Production mode:
-     
+
      ```bash
      npm run start:prod
      ```
 
 5. **Access Swagger documentation**:
-   
+
    After starting the server, Swagger UI is available at:
-   
+
    ```
    http://localhost:<PORT>/api
    ```
-   
+
    It includes complete documentation for endpoints related to authentication, users, and movies.
 
 ## 📁 Main Resources
@@ -116,6 +116,11 @@ npm run test
 ## 📦 Environments
 
 The project is configured to run in **production** with environment-specific variables handled via `.env`.
+
+## 🔐 Credentials (Admin user. For the produccion DB)
+
+**Email:** admin@gmail.com
+**Password:** 12345678
 
 ## 👤 Author
 
