@@ -23,7 +23,7 @@ async function bootstrap() {
   const constantsService = app.get(ConstantsService);
   const logger = app.get(WinstonLogger);
   const ENVIRONMENT = constantsService.ENVIRONMENT;
-  const PORT = constantsService.PORT;
+  const PORT = constantsService.PORT || 3000;
 
   if (ENVIRONMENT === 'unknown') {
     logger.error('ENVIRONMENT no está seteado correctamente.');
@@ -47,8 +47,8 @@ async function bootstrap() {
     app.useGlobalPipes(new ValidationPipe());
     app.useGlobalFilters(new AllExceptionsFilter());
 
-    await app.listen(PORT);
-    logger.log(`Server running on http://localhost:${PORT}`);
+    await app.listen(PORT, '0.0.0.0');
+    logger.log(`Server running on http://0.0.0.0:${PORT}`);
   } catch (err) {
     logger.error('Error al iniciar la aplicación', err.stack);
     process.exit(1);
