@@ -1,154 +1,175 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Repository } from 'typeorm';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { AuthService } from '../auth.service';
+import * as hashUtil from '../../../utils/hash.util';
+import * as jwtUtil from '../../../utils/jwt.util';
 import { Auth } from '../entities/auth.entity';
 import { User } from '../../user/entities/user.entity';
+import { AuthService } from '../auth.service';
 import { UserService } from '../../user/user.service';
-import { CreateUserDto } from '../../user/dto/create-user.dto';
-import { signInDto } from '../dto/signin.dto';
-import { HttpException } from '@nestjs/common';
 import { WinstonLogger } from '../../../config/logger.config';
+import { Role } from '../../../enums/userRole.enum';
+import { CreateUserDto } from '../../user/dto/create-user.dto';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let authRepo: Repository<Auth>;
-  let userRepo: Repository<User>;
-  let userService: UserService;
-  let logger: WinstonLogger;
-
-  const mockLogger = {
-    log: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn(),
-    verbose: jest.fn(),
-  };
-
-  const mockAuthRepository = {
-    findOne: jest.fn(),
-    create: jest.fn(),
-    save: jest.fn(),
-  };
-
-  const mockUserRepository = {
-    findOne: jest.fn(),
-    create: jest.fn(),
-    save: jest.fn(),
-  };
-
-  const mockUserService = {
-    findOneByEmail: jest.fn(),
-    create: jest.fn(),
-  };
+  let userService: Partial<UserService>;
+  let jwtService: Partial<JwtService>;
+  let authRepository: Partial<Repository<Auth>>;
+  let userRepository: Partial<Repository<User>>;
+  let mockLogger: Partial<WinstonLogger>;
 
   beforeEach(async () => {
+    userService = {
+      findOneByEmail: jest.fn(),
+    };
+
+    jwtService = {
+      sign: jest.fn(),
+    };
+
+    authRepository = {
+      findOne: jest.fn(),
+      save: jest.fn(),
+      create: jest.fn(),
+    };
+
+    userRepository = {
+      findOne: jest.fn(),
+    };
+
+    mockLogger = {
+      log: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: getRepositoryToken(Auth), useValue: mockAuthRepository },
-        { provide: getRepositoryToken(User), useValue: mockUserRepository },
-        { provide: UserService, useValue: mockUserService },
+        { provide: UserService, useValue: userService },
+        { provide: JwtService, useValue: jwtService },
+        { provide: getRepositoryToken(Auth), useValue: authRepository },
+        { provide: getRepositoryToken(User), useValue: userRepository },
         { provide: WinstonLogger, useValue: mockLogger },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    authRepo = module.get<Repository<Auth>>(getRepositoryToken(Auth));
-    userRepo = module.get<Repository<User>>(getRepositoryToken(User));
-    userService = module.get<UserService>(UserService);
-    logger = module.get<WinstonLogger>(WinstonLogger);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
   });
 
   describe('signup', () => {
-    const createUserDto: CreateUserDto = {
-      email: 'test@example.com',
-      password: 'password123',
-      role: 1,
-    };
+    it('should throw if user exists without auth', async () => {
+      const dto: CreateUserDto = {
+        email: 'test@example.com',
+        password: '123456',
+        role: Role.User,
+      };
 
-    it('should create user if not exists and create auth record', async () => {
-      mockUserRepository.findOne.mockResolvedValueOnce(null);
-      mockUserService.create.mockResolvedValue({
-        id: 1,
-        email: createUserDto.email,
-        role: createUserDto.role,
-      });
-      mockAuthRepository.findOne.mockResolvedValueOnce(null);
-      mockAuthRepository.create.mockReturnValue({
-        password: 'hashedPassword',
-        userId: { id: 1 },
-      });
-      mockAuthRepository.save.mockResolvedValue({
-        id: 1,
-        password: 'hashedPassword',
-        userId: { id: 1 },
+      const existingUser = { id: 1, email: dto.email };
+
+      (userRepository.findOne as jest.Mock).mockResolvedValue(existingUser);
+
+      (authRepository.findOne as jest.Mock).mockResolvedValue({
+        userId: existingUser,
       });
 
-      const result = await service.signup(createUserDto);
-      expect(mockUserService.create).toHaveBeenCalledWith(createUserDto);
-      expect(mockAuthRepository.create).toHaveBeenCalled();
-      expect(mockAuthRepository.save).toHaveBeenCalled();
-      expect(result).toHaveProperty('id');
-      expect(mockLogger.log).toHaveBeenCalled();
-    });
+      await expect(service.signup(dto)).rejects.toThrow(ConflictException);
 
-    it('should throw error if auth record exists', async () => {
-      mockUserRepository.findOne.mockResolvedValueOnce({
-        id: 1,
-        email: createUserDto.email,
-      });
-      mockAuthRepository.findOne.mockResolvedValueOnce({ id: 1 });
-
-      await expect(service.signup(createUserDto)).rejects.toThrow(
-        HttpException
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Signup warning: User with email test@example.com already exists'
+        )
       );
-      expect(mockLogger.error).toHaveBeenCalled();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Signup conflict: Auth record already exists for user test@example.com'
+        )
+      );
     });
   });
 
   describe('signin', () => {
-    const signInDtoMock: signInDto = {
-      email: 'test@example.com',
-      password: 'password123',
-    };
-
     it('should return token if credentials are correct', async () => {
-      const user = { id: 1, email: signInDtoMock.email };
-      const auth = { password: 'salt:hashedPassword' };
+      const email = 'test@example.com';
+      const password = 'test123';
 
-      mockUserService.findOneByEmail.mockResolvedValue(user);
-      mockAuthRepository.findOne.mockResolvedValue(auth);
+      const user = { id: 1, email, role: Role.User };
+      const salt = 'randomsalt';
+      const hashedPassword = `${salt}:hashedpassword`;
 
-      jest.mock('../../utils/hash.util', () => ({
-        validatePassword: jest.fn().mockResolvedValue(true),
-        signToken: jest.fn().mockReturnValue('token'),
-      }));
+      const auth = {
+        userId: user,
+        password: hashedPassword,
+      };
 
-      const result = await service.signin(signInDtoMock);
-      expect(result).toHaveProperty('access_token');
-      expect(mockLogger.log).toHaveBeenCalled();
-    });
+      (userService.findOneByEmail as jest.Mock).mockResolvedValue(user);
+      (authRepository.findOne as jest.Mock).mockResolvedValue(auth);
 
-    it('should throw error if credentials are wrong', async () => {
-      mockUserService.findOneByEmail.mockResolvedValue(null);
-      await expect(service.signin(signInDtoMock)).rejects.toThrow(
-        HttpException
+      (
+        jest.spyOn(hashUtil, 'createSaltAndHash') as jest.Mock
+      ).mockResolvedValue(hashedPassword);
+
+      jest.spyOn(jwtUtil, 'createToken').mockReturnValue('valid.token');
+
+      const result = await service.signin({ email, password });
+
+      expect(result).toEqual('valid.token');
+      expect(mockLogger.log).toHaveBeenCalledWith(
+        expect.stringContaining('User test@example.com signed in successfully')
       );
-      expect(mockLogger.error).toHaveBeenCalled();
     });
   });
-
   describe('refreshToken', () => {
-    it('should call refreshToken and return new token', async () => {
-      jest.spyOn(service, 'refreshToken').mockResolvedValue('newToken');
-      const result = await service.refreshToken('oldToken');
-      expect(result).toBe('newToken');
-      expect(mockLogger.log).toHaveBeenCalled();
+    it('should return a new token if the input token is valid', async () => {
+      const oldToken = 'valid.token';
+      const payload = { id: 1, role: Role.User };
+      const newToken = 'new.valid.token';
+
+      jest.spyOn(jwtUtil, 'verifyToken').mockReturnValue(payload);
+      jest.spyOn(jwtUtil, 'createToken').mockReturnValue(newToken);
+
+      const result = await service.refreshToken(oldToken);
+
+      expect(result).toBe(newToken);
+      expect(mockLogger.log).toHaveBeenCalledWith('Refreshing token');
+      expect(mockLogger.log).toHaveBeenCalledWith(
+        'Token refreshed successfully'
+      );
+    });
+
+    it('should throw UnauthorizedException if token is invalid', async () => {
+      const invalidToken = 'invalid.token';
+
+      jest.spyOn(jwtUtil, 'verifyToken').mockReturnValue(null);
+
+      await expect(service.refreshToken(invalidToken)).rejects.toThrow(
+        UnauthorizedException
+      );
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Refresh token failed: Invalid token'
+      );
+    });
+
+    it('should throw UnauthorizedException and log error if verifyToken throws', async () => {
+      const token = 'crashing.token';
+
+      jest.spyOn(jwtUtil, 'verifyToken').mockImplementation(() => {
+        throw new Error('Unexpected error');
+      });
+
+      await expect(service.refreshToken(token)).rejects.toThrow(
+        UnauthorizedException
+      );
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Error refreshing token:',
+        expect.any(Error)
+      );
     });
   });
 });

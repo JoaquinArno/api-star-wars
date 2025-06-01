@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { WinstonLogger } from '../../../config/logger.config';
 
-jest.mock('../../utils/hash.util', () => ({
+jest.mock('../../../utils/hash.util', () => ({
   genSalt: jest.fn().mockResolvedValue('salt'),
   createSaltAndHash: jest.fn().mockResolvedValue('hashedPassword'),
 }));

@@ -1,5 +1,6 @@
 import {
   Injectable,
+  HttpException,
   NotFoundException,
   InternalServerErrorException,
   BadRequestException,
@@ -71,6 +72,9 @@ export class UserService {
 
       return savedUser;
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       this.logger.error('Error creating user:', error);
       throw new InternalServerErrorException('Error creating user');
     }
@@ -123,6 +127,9 @@ export class UserService {
 
       return updatedUser;
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       this.logger.error(`Error updating user with ID ${id}`, error);
       throw new InternalServerErrorException('Error updating user');
     }

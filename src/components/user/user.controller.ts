@@ -18,19 +18,24 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { WinstonLogger } from '../../config/logger.config';
 
 @ApiTags('Users')
 @ApiBearerAuth()
 @Controller('user')
 @UseGuards(JwtAuthGuard)
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly logger: WinstonLogger
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new user' })
   @ApiResponse({ status: 201, description: 'User created successfully' })
   @ApiResponse({ status: 400, description: 'Validation error' })
   async create(@Body() createUserDto: CreateUserDto) {
+    this.logger.log('Creating new user');
     return this.userService.create(createUserDto);
   }
 
@@ -38,6 +43,7 @@ export class UserController {
   @ApiOperation({ summary: 'Get all users' })
   @ApiResponse({ status: 200, description: 'List of users' })
   async findAll() {
+    this.logger.log('Fetching all users');
     return this.userService.findAll();
   }
 
@@ -46,6 +52,7 @@ export class UserController {
   @ApiResponse({ status: 200, description: 'User found' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
+    this.logger.log(`Fetching user with id ${id}`);
     return this.userService.findOne(id);
   }
 
@@ -57,6 +64,7 @@ export class UserController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto
   ) {
+    this.logger.log(`Updating user with id ${id}`);
     return this.userService.update(id, updateUserDto);
   }
 }

@@ -10,7 +10,7 @@ const mockMovieService = {
   create: jest.fn(),
   update: jest.fn(),
   remove: jest.fn(),
-  importMoviesFromSwapi: jest.fn(),
+  starWarsApiSync: jest.fn(),
 };
 
 const mockLogger = {

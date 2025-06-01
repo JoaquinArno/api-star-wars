@@ -43,7 +43,7 @@ export class AuthService {
         );
 
         const existingAuth = await this.authRepository.findOne({
-          where: { userId: existingUser },
+          where: { userId: { id: existingUser.id } },
         });
 
         if (existingAuth) {
@@ -79,6 +79,10 @@ export class AuthService {
 
       return savedAuth;
     } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+
       this.logger.error('Error signing up user:', error);
       throw new InternalServerErrorException('Error signing up user');
     }
@@ -91,6 +95,11 @@ export class AuthService {
       this.logger.log(`Signin attempt for email: ${email}`);
 
       const user = await this.userService.findOneByEmail(email);
+
+      if (!user) {
+        this.logger.warn(`Signin failed: User with email ${email} not found`);
+        throw new UnauthorizedException('Invalid credentials');
+      }
 
       const auth = await this.authRepository.findOne({
         where: { userId: { id: user.id } },

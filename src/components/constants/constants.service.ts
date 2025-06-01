@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-
-export const LOGGER_SERVICE = Symbol.for('LoggerService');
+import { WinstonLogger } from '../../config/logger.config';
 
 @Injectable()
 export class ConstantsService {
@@ -23,17 +22,23 @@ export class ConstantsService {
   readonly DB_SSL = this.configService.get<string>('DB_SSL', 'true') === 'true';
 
   get typeOrmConfig(): TypeOrmModuleOptions {
-    return {
-      type: 'postgres',
-      host: this.DB_HOST,
-      port: this.DB_PORT,
-      username: this.DB_USER,
-      password: this.DB_PASSWORD,
-      database: this.DB_NAME,
-      autoLoadEntities: true,
-      synchronize: true,
-      ssl: this.DB_SSL ? { rejectUnauthorized: false } : false,
-    };
+    try {
+      return {
+        type: 'postgres',
+        host: this.DB_HOST,
+        port: this.DB_PORT,
+        username: this.DB_USER,
+        password: this.DB_PASSWORD,
+        database: this.DB_NAME,
+        autoLoadEntities: true,
+        synchronize: true,
+        ssl: this.DB_SSL ? { rejectUnauthorized: false } : false,
+      };
+    } catch (error) {
+      const logger = new WinstonLogger();
+      logger.error('Error construyendo configuración de TypeORM', error.stack);
+      throw error;
+    }
   }
 
   readonly URLS = {

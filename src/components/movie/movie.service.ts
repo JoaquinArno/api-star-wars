@@ -1,25 +1,22 @@
 import {
   Injectable,
-  Inject,
   NotFoundException,
-  LoggerService,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import axios from 'axios';
-import { LOGGER_SERVICE } from '../constants/constants.service';
 import { Movie } from './entities/movie.entity';
 import { CreateMovieDto } from './dto/create-movie.dto';
 import { UpdateMovieDto } from './dto/update-movie.dto';
+import { WinstonLogger } from '../../config/logger.config';
+import axios from 'axios';
 
 @Injectable()
 export class MovieService {
   constructor(
     @InjectRepository(Movie)
     private readonly movieRepository: Repository<Movie>,
-
-    @Inject(LOGGER_SERVICE)
-    private readonly logger: LoggerService
+    private readonly logger: WinstonLogger
   ) {}
 
   async findAll(): Promise<Movie[]> {
@@ -32,68 +29,75 @@ export class MovieService {
     const movie = await this.movieRepository.findOne({ where: { id } });
     if (!movie) {
       this.logger.warn(`Movie with id ${id} not found`);
-      throw new NotFoundException('Movie not found');
+      throw new NotFoundException(`Movie with id ${id} not found`);
     }
     return movie;
   }
 
-  async create(dto: CreateMovieDto): Promise<Movie> {
-    this.logger.log(`Creating new movie with title: ${dto.title}`);
-    const newMovie = this.movieRepository.create(dto);
-    return await this.movieRepository.save(newMovie);
+  async create(createMovieDto: CreateMovieDto): Promise<Movie> {
+    try {
+      this.logger.log(`Creating new movie with title: ${createMovieDto.title}`);
+      const movie = this.movieRepository.create(createMovieDto);
+      return await this.movieRepository.save(movie);
+    } catch (error) {
+      this.logger.error('Failed to create movie', error.stack);
+      throw new InternalServerErrorException('Failed to create movie');
+    }
   }
 
-  async update(id: number, dto: UpdateMovieDto): Promise<Movie> {
+  async update(id: number, updateMovieDto: UpdateMovieDto): Promise<Movie> {
     this.logger.log(`Updating movie with id: ${id}`);
-    const movie = await this.findOne(id);
-    const updated = Object.assign(movie, dto);
-    return await this.movieRepository.save(updated);
+    const movie = await this.movieRepository.findOne({ where: { id } });
+    if (!movie) {
+      this.logger.warn(`Movie with id ${id} not found`);
+      throw new NotFoundException(`Movie with id ${id} not found`);
+    }
+
+    Object.assign(movie, updateMovieDto);
+    return await this.movieRepository.save(movie);
   }
 
   async remove(id: number): Promise<void> {
     this.logger.log(`Removing movie with id: ${id}`);
-    const movie = await this.findOne(id);
+    const movie = await this.movieRepository.findOne({ where: { id } });
+    if (!movie) {
+      this.logger.warn(`Movie with id ${id} not found`);
+      throw new NotFoundException(`Movie with id ${id} not found`);
+    }
+
     await this.movieRepository.remove(movie);
     this.logger.log(`Movie with id ${id} removed successfully`);
   }
 
   async starWarsApiSync(): Promise<void> {
     try {
-      const response = await axios.get('https://www.swapi.tech/api/films');
-      const filmList = response.data.result;
+      const listUrl = 'https://www.swapi.tech/api/films';
+      const listResponse = await axios.get(listUrl);
+      const results = listResponse.data.result;
 
-      for (const film of filmList) {
-        const uid = film.uid;
+      for (const item of results) {
+        const detailUrl = `https://www.swapi.tech/api/films/${item.uid}`;
+        const detailResponse = await axios.get(detailUrl);
 
-        const exists = await this.movieRepository.findOne({
-          where: { id: uid },
+        const film = detailResponse.data.result;
+        const { title, director, release_date } = film.properties;
+
+        const existingMovie = await this.movieRepository.findOne({
+          where: { title },
         });
 
-        if (exists) {
-          this.logger.log(`Movie with ID ${uid} already exists. Skipping.`);
-          continue;
+        if (!existingMovie) {
+          const newMovie = this.movieRepository.create({
+            title,
+            director,
+            year: new Date(release_date).getFullYear(),
+            description: film.description,
+            genre: 'Sci-Fi',
+          });
+
+          await this.movieRepository.save(newMovie);
+          this.logger.log(`Imported movie: ${title}`);
         }
-
-        const filmDetailsResponse = await axios.get(
-          `https://www.swapi.tech/api/films/${uid}`
-        );
-        const filmData = filmDetailsResponse.data.result;
-
-        const createMovieDto: CreateMovieDto = {
-          title: filmData.properties.title,
-          description: filmData.description,
-          director: filmData.properties.director,
-          year: new Date(filmData.properties.release_date).getFullYear(),
-          genre: 'Science Fiction',
-        };
-
-        const movie = this.movieRepository.create({
-          id: uid,
-          ...createMovieDto,
-        });
-
-        await this.movieRepository.save(movie);
-        this.logger.log(`Imported movie: ${createMovieDto.title}`);
       }
 
       this.logger.log('Movie import from SWAPI completed.');
