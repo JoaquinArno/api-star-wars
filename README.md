@@ -117,15 +117,10 @@ npm run test
 
 The project is configured to run in **production** with environment-specific variables handled via `.env`.
 
-## 🔐 Credentials (Admin user. For the produccion DB)
-
-**Email:** admin@gmail.com
-**Password:** 12345678
-
 ## 👤 Author
 
 Developed by **Joaquin Arno**
 
-GitHub repository: [https://github.com/JoaquinArno/conexa-challenge](https://github.com/JoaquinArno/conexa-challenge)
+GitHub repository: https://github.com/JoaquinArno/api-star-wars.git
 
 Render deploy: https://conexa-challenge-nu6r.onrender.com
