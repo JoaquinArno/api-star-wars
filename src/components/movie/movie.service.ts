@@ -66,7 +66,6 @@ export class MovieService {
     }
 
     await this.movieRepository.remove(movie);
-    this.logger.log(`Movie with id ${id} removed successfully`);
   }
 
   async starWarsApiSync(): Promise<void> {

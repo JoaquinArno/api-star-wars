@@ -8,9 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { createSaltAndHash, genSalt } from '../../utils/hash.util';
 import { User } from './entities/user.entity';
-import { Auth } from '../auth/entities/auth.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { WinstonLogger as Logger } from '../../config/logger.config';
@@ -20,8 +18,6 @@ export class UserService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-    @InjectRepository(Auth)
-    private readonly authRepository: Repository<Auth>,
     private readonly logger: Logger
   ) {}
 
@@ -57,16 +53,6 @@ export class UserService {
       });
 
       const savedUser = await this.userRepository.save(user);
-
-      const salt = await genSalt();
-      const hashedPassword = await createSaltAndHash(password, salt);
-
-      const auth = this.authRepository.create({
-        password: hashedPassword,
-        userId: savedUser,
-      });
-
-      await this.authRepository.save(auth);
 
       this.logger.log(`User created successfully with ID: ${savedUser.id}`);
 
@@ -122,8 +108,6 @@ export class UserService {
       Object.assign(user, updateUserDto);
 
       const updatedUser = await this.userRepository.save(user);
-
-      this.logger.log(`User with ID ${id} updated successfully`);
 
       return updatedUser;
     } catch (error) {
