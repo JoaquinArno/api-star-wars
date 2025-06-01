@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
 import { ConstantsModule } from './components/constants/constants.module';
 import { ConstantsService } from './components/constants/constants.service';
 import { ConfigModule } from '@nestjs/config';
@@ -23,5 +24,6 @@ import { MovieModule } from './components/movie/movie.module';
     UserModule,
     MovieModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
